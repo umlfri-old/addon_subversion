@@ -36,12 +36,12 @@ class Plugin(object):
         
         
         self.pluginAdapter.AddNotification('team-project-opened', self.TeamProjectOpened)
-        self.pluginAdapter.AddNotification('register-for-checkout', self.SendRegistrationForCheckout)
-        self.pluginAdapter.AddNotification('checkout', self.Checkout)
+        self.pluginAdapter.AddNotification('team-register-for-checkout', self.SendRegistrationForCheckout)
+        self.pluginAdapter.AddNotification('team-checkout', self.Checkout)
         
         
         
-        self.pluginAdapter.AddNotification('get-supported', self.GetSupported)
+        self.pluginAdapter.AddNotification('team-get-supported', self.GetSupported)
         
         self.SendRegistrationForCheckout()
         
@@ -49,59 +49,60 @@ class Plugin(object):
         self.checkinMessage = None
     
     def SendRegistrationForCheckout(self):
-        self.pluginAdapter.Notify('send-register-implementation-for-checkout', self.ID, self.description)
+        self.pluginAdapter.Notify('team-send-register-implementation-for-checkout', self.ID, self.description)
     
     def __AddAllNotifications(self):
         # zaregistruj si vsetky callbacky
-        self.pluginAdapter.AddNotification('get-file-data', self.GetFileData)
-        self.pluginAdapter.AddNotification('update', self.Update)
-        self.pluginAdapter.AddNotification('make-compatible', self.MakeCompatible)
-        self.pluginAdapter.AddNotification('resolve', self.Resolve)
-        self.pluginAdapter.AddNotification('checkin', self.Checkin)
-        self.pluginAdapter.AddNotification('continue-checkin', self.ContinueCheckin)
-        self.pluginAdapter.AddNotification('revert', self.Revert)
-        self.pluginAdapter.AddNotification('get-log', self.Log)
+        self.pluginAdapter.AddNotification('team-get-file-data', self.GetFileData)
+        self.pluginAdapter.AddNotification('team-update', self.SvnUpdate)
+        self.pluginAdapter.AddNotification('team-make-compatible', self.MakeCompatible)
+        self.pluginAdapter.AddNotification('team-resolve', self.Resolve)
+        self.pluginAdapter.AddNotification('team-checkin', self.Checkin)
+        self.pluginAdapter.AddNotification('team-continue-checkin', self.ContinueCheckin)
+        self.pluginAdapter.AddNotification('team-revert', self.Revert)
+        self.pluginAdapter.AddNotification('team-get-log', self.Log)
         
-        self.pluginAdapter.AddNotification('solve-conflicts-in-opened-project', self.SolveConflicts)
+        self.pluginAdapter.AddNotification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
         
     def __RemoveAllNotifications(self):
-        self.pluginAdapter.RemoveNotification('get-file-data', self.GetFileData)
-        self.pluginAdapter.RemoveNotification('update', self.Update)
-        self.pluginAdapter.RemoveNotification('make-compatible', self.MakeCompatible)
-        self.pluginAdapter.RemoveNotification('resolve', self.Resolve)
-        self.pluginAdapter.RemoveNotification('checkin', self.Checkin)
-        self.pluginAdapter.RemoveNotification('continue-checkin', self.ContinueCheckin)
-        self.pluginAdapter.RemoveNotification('revert', self.Revert)
-        self.pluginAdapter.RemoveNotification('get-log', self.Log)
-        self.pluginAdapter.RemoveNotification('solve-conflicts-in-opened-project', self.SolveConflicts)
+        self.pluginAdapter.RemoveNotification('team-get-file-data', self.GetFileData)
+        self.pluginAdapter.RemoveNotification('team-update', self.SvnUpdate)
+        self.pluginAdapter.RemoveNotification('team-make-compatible', self.MakeCompatible)
+        self.pluginAdapter.RemoveNotification('team-resolve', self.Resolve)
+        self.pluginAdapter.RemoveNotification('team-checkin', self.Checkin)
+        self.pluginAdapter.RemoveNotification('team-continue-checkin', self.ContinueCheckin)
+        self.pluginAdapter.RemoveNotification('team-revert', self.Revert)
+        self.pluginAdapter.RemoveNotification('team-get-log', self.Log)
+        self.pluginAdapter.RemoveNotification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
         
     def TeamProjectOpened(self, fileName):
-        print 'caught signal team project opened', fileName
         
         self.__fileName = fileName
         
         
         try:
             self.__RemoveAllNotifications()
-        except:
-            pass
+        except Exception, e:
+            print e
       
         if self.IsProjectVersioned():
             # pridaj si vsetky callbacky
             self.__AddAllNotifications()
             
             if not self.IsCompatible():
-                self.pluginAdapter.Notify('ask-compatible')
+                
+                self.pluginAdapter.Notify('team-ask-compatible')
             else:
                 self.GetSupported()
                 if self.IsInConflict():
-                    self.pluginAdapter.Notify('solve-conflicts', self.GetConflictingFiles(), self.__fileName)
+                    
+                    self.pluginAdapter.Notify('team-solve-conflicts', self.GetConflictingFiles(), self.__fileName)
         
             
     
     def GetSupported(self):
         if self.IsCompatible() and self.IsProjectVersioned():
-            self.pluginAdapter.Notify('send-supported', self.supported)
+            self.pluginAdapter.Notify('team-send-supported', self.supported)
     
         
     def GetFileData(self, idData, actionId, revision=None):
@@ -114,8 +115,8 @@ class Plugin(object):
         (out, err) = p.communicate()
         
         if p.returncode == 0:
-            self.pluginAdapter.Notify('send-file-data', out, idData)
-            self.pluginAdapter.Notify('continue-'+actionId)
+            self.pluginAdapter.Notify('team-send-file-data', out, idData)
+            self.pluginAdapter.Notify('team-continue-'+actionId)
         else:
             self.pluginAdapter.Notify('team-exception', err)
         
@@ -130,11 +131,11 @@ class Plugin(object):
    
     
         
-    def Update(self, revision=None):
+    def SvnUpdate(self, revision=None):
         '''
         Run update, return new status of updated file
         '''
-        print 'trying svn update to revision'
+        print 'trying svn update to revision', revision
         if revision is None:
             rev = 'HEAD'
         else:
@@ -147,12 +148,14 @@ class Plugin(object):
         
         if self.IsInConflict():
             # treba reloadnut a riesit konflikty
-            self.pluginAdapter.Notify('load-project', self.__fileName)
+            
+            self.pluginAdapter.Notify('team-load-project', self.__fileName)
         
         else:
             # neboli lokalne zmeny a sam to prevalil
-            self.pluginAdapter.Notify('send-result', result)
-            self.pluginAdapter.Notify('load-project', self.__fileName)
+            
+            self.pluginAdapter.Notify('team-send-result', result)
+            self.pluginAdapter.Notify('team-load-project', self.__fileName)
     
     
     def IsCompatible(self):
@@ -177,7 +180,7 @@ class Plugin(object):
         command = [self.executable, 'propset', 'svn:mime-type', 'application/octet-stream', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
-        self.pluginAdapter.Notify('load-project', self.__fileName)
+        self.pluginAdapter.Notify('team-load-project', self.__fileName)
     
     def IsInConflict(self):
         command2 = [self.executable, 'status', self.__fileName, '--xml']
@@ -206,22 +209,26 @@ class Plugin(object):
              
             baseFile = os.path.join(os.path.dirname(self.__fileName), baseFileName)
             newFile = os.path.join(os.path.dirname(self.__fileName), newFileName)
-            return {'mine':self.__fileName, 'base':baseFile, 'new':newFile}
+            result = {'mine':self.__fileName, 'base':baseFile, 'new':newFile}
+            print result 
+            return result
         else:
             return None
             
     
     def Resolve(self):
+        
         command = [self.executable, 'resolved', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (result, err) = p.communicate()
-        self.pluginAdapter.Notify('load-project', self.__fileName)
+        print result, err
+        self.pluginAdapter.Notify('team-load-project', self.__fileName)
     
     def SolveConflicts(self):
         if self.IsInConflict():
-            self.pluginAdapter.Notify('solve-conflicts', self.GetConflictingFiles(), self.__fileName)
+            self.pluginAdapter.Notify('team-solve-conflicts', self.GetConflictingFiles(), self.__fileName)
         else:
-            self.pluginAdapter.Notify('send-result', 'Project is not in conflict')
+            self.pluginAdapter.Notify('team-send-result', 'Project is not in conflict')
     
     
     
@@ -237,15 +244,15 @@ class Plugin(object):
                 command = [self.executable, 'commit', self.__fileName, '-m', message, '--non-interactive', '--username',username, '--password', password]
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
-        if p.returncode == 0:
-            self.pluginAdapter.Notify('send-result', out)
-            self.checkinMessage = None
-        else:
-            if err.lower().find('authorization') != -1:
-                self.pluginAdapter.Notify('get-authorization', 'checkin')
+            if p.returncode == 0:
+                self.pluginAdapter.Notify('team-send-result', out)
+                self.checkinMessage = None
             else:
-                # inak vrat chybovu hlasku
-                self.pluginAdapter.Notify('team-exception', err)
+                if err.lower().find('authorization') != -1:
+                    self.pluginAdapter.Notify('get-authorization', 'checkin')
+                else:
+                    # inak vrat chybovu hlasku
+                    self.pluginAdapter.Notify('team-exception', err)
         
     def ContinueCheckin(self, username, password):
         self.Checkin(self.checkinMessage, username, password)
@@ -255,8 +262,8 @@ class Plugin(object):
         command = [self.executable, 'revert', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         p.communicate()
-        self.pluginAdapter.Notify('load-project', self.__fileName)
-        self.pluginAdapter.Notify('send-result', 'Reverted')
+        self.pluginAdapter.Notify('team-load-project', self.__fileName)
+        self.pluginAdapter.Notify('team-send-result', 'Reverted')
         
     
     
@@ -280,7 +287,7 @@ class Plugin(object):
                     d['message'] = sub.text
             result.append(d)
         
-        self.pluginAdapter.Notify('send-log', result)
+        self.pluginAdapter.Notify('team-send-log', result)
         
     def Checkout(self, implId, url, directory, revision = None):
         print implId, self.ID
@@ -296,7 +303,7 @@ class Plugin(object):
             print 'out',out
             print 'err',err
             if err == '':
-                self.pluginAdapter.Notify('send-result', out)
+                self.pluginAdapter.Notify('team-send-result', out)
             else:
                 self.pluginAdapter.Notify('team-exception', err)
     
