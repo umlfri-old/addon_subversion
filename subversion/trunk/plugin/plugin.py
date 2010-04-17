@@ -4,10 +4,10 @@ Created on 27.2.2010
 @author: Peterko
 '''
 
-from lib.Addons.Plugin.Client.Interface import CInterface
+
 from subprocess import Popen, PIPE
 from imports.etree import etree
-#from teamExceptions import *
+
 import os
 
 class Plugin(object):
@@ -83,7 +83,7 @@ class Plugin(object):
         try:
             self.__RemoveAllNotifications()
         except Exception, e:
-            print e
+            pass
       
         if self.IsProjectVersioned():
             # pridaj si vsetky callbacky
