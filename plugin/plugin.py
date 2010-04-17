@@ -34,9 +34,14 @@ class Plugin(object):
         self.pluginAdapter = self.interface.GetAdapter()
         self.pluginGuiManager = self.pluginAdapter.GetGuiManager()
         
+        
         self.pluginAdapter.AddNotification('team-project-opened', self.TeamProjectOpened)
         self.pluginAdapter.AddNotification('register-for-checkout', self.SendRegistrationForCheckout)
         self.pluginAdapter.AddNotification('checkout', self.Checkout)
+        
+        
+        
+        self.pluginAdapter.AddNotification('get-supported', self.GetSupported)
         
         self.SendRegistrationForCheckout()
         
@@ -45,16 +50,11 @@ class Plugin(object):
     
     def SendRegistrationForCheckout(self):
         self.pluginAdapter.Notify('send-register-implementation-for-checkout', self.ID, self.description)
-        
-    def TeamProjectOpened(self, fileName):
-        print 'caught signal team project opened', fileName
-        
-        self.__fileName = fileName
-        
+    
+    def __AddAllNotifications(self):
         # zaregistruj si vsetky callbacky
         self.pluginAdapter.AddNotification('get-file-data', self.GetFileData)
         self.pluginAdapter.AddNotification('update', self.Update)
-        self.pluginAdapter.AddNotification('is-compatible', self.IsCompatible)
         self.pluginAdapter.AddNotification('make-compatible', self.MakeCompatible)
         self.pluginAdapter.AddNotification('resolve', self.Resolve)
         self.pluginAdapter.AddNotification('checkin', self.Checkin)
@@ -64,33 +64,44 @@ class Plugin(object):
         
         self.pluginAdapter.AddNotification('solve-conflicts-in-opened-project', self.SolveConflicts)
         
+    def __RemoveAllNotifications(self):
+        self.pluginAdapter.RemoveNotification('get-file-data', self.GetFileData)
+        self.pluginAdapter.RemoveNotification('update', self.Update)
+        self.pluginAdapter.RemoveNotification('make-compatible', self.MakeCompatible)
+        self.pluginAdapter.RemoveNotification('resolve', self.Resolve)
+        self.pluginAdapter.RemoveNotification('checkin', self.Checkin)
+        self.pluginAdapter.RemoveNotification('continue-checkin', self.ContinueCheckin)
+        self.pluginAdapter.RemoveNotification('revert', self.Revert)
+        self.pluginAdapter.RemoveNotification('get-log', self.Log)
+        self.pluginAdapter.RemoveNotification('solve-conflicts-in-opened-project', self.SolveConflicts)
         
-        self.pluginAdapter.AddNotification('get-supported', self.GetSupported)
+    def TeamProjectOpened(self, fileName):
+        print 'caught signal team project opened', fileName
+        
+        self.__fileName = fileName
         
         
+        try:
+            self.__RemoveAllNotifications()
+        except:
+            pass
+      
+        if self.IsProjectVersioned():
+            # pridaj si vsetky callbacky
+            self.__AddAllNotifications()
+            
+            if not self.IsCompatible():
+                self.pluginAdapter.Notify('ask-compatible')
+            else:
+                self.GetSupported()
+                if self.IsInConflict():
+                    self.pluginAdapter.Notify('solve-conflicts', self.GetConflictingFiles(), self.__fileName)
         
-        
-        
-        if not self.IsProjectVersioned():
-            # zrus vsetky callbacky
-            self.pluginAdapter.RemoveNotification('get-file-data', self.GetFileData)
-            self.pluginAdapter.RemoveNotification('update', self.Update)
-            self.pluginAdapter.RemoveNotification('is-compatible', self.IsCompatible)
-            self.pluginAdapter.RemoveNotification('make-compatible', self.MakeCompatible)
-            self.pluginAdapter.RemoveNotification('resolve', self.Resolve)
-            self.pluginAdapter.RemoveNotification('checkin', self.Checkin)
-            self.pluginAdapter.RemoveNotification('continue-checkin', self.ContinueCheckin)
-            self.pluginAdapter.RemoveNotification('revert', self.Revert)
-            self.pluginAdapter.RemoveNotification('get-log', self.Log)
-            self.pluginAdapter.RemoveNotification('solve-conflicts-in-opened-project', self.SolveConflicts)
-        
-        else:
-            self.GetSupported()
-            if self.IsInConflict():
-                self.pluginAdapter.Notify('solve-conflicts', self.GetConflictingFiles(), self.__fileName)
+            
     
     def GetSupported(self):
-        self.pluginAdapter.Notify('send-supported', self.supported)
+        if self.IsCompatible() and self.IsProjectVersioned():
+            self.pluginAdapter.Notify('send-supported', self.supported)
     
         
     def GetFileData(self, idData, actionId, revision=None):
@@ -135,32 +146,38 @@ class Plugin(object):
         (result, err) = p.communicate()
         
         if self.IsInConflict():
-            self.pluginAdapter.Notify('solve-conflicts', self.GetConflictingFiles(), self.__fileName)
+            # treba reloadnut a riesit konflikty
+            self.pluginAdapter.Notify('load-project', self.__fileName)
         
         else:
+            # neboli lokalne zmeny a sam to prevalil
             self.pluginAdapter.Notify('send-result', result)
+            self.pluginAdapter.Notify('load-project', self.__fileName)
     
     
     def IsCompatible(self):
         command = [self.executable, 'propget', 'svn:mime-type', self.__fileName, '--xml']
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
-        r = etree.XML(out)
         result = False
-        for t in r:
-            if t.tag == 'target':
-                if os.path.normpath(t.get('path')) == os.path.normpath(self.__fileName):
-                    for p in t:
-                        if p.tag == 'property':
-                            if p.get('name') == 'svn:mime-type':
-                                if p.text == 'application/octet-stream':
-                                    result = True
+        if p.returncode == 0:
+            r = etree.XML(out)
+            
+            for t in r:
+                if t.tag == 'target':
+                    if os.path.normpath(t.get('path')) == os.path.normpath(self.__fileName):
+                        for p in t:
+                            if p.tag == 'property':
+                                if p.get('name') == 'svn:mime-type':
+                                    if p.text == 'application/octet-stream':
+                                        result = True
         return result
     
     def MakeCompatible(self):
         command = [self.executable, 'propset', 'svn:mime-type', 'application/octet-stream', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
+        self.pluginAdapter.Notify('load-project', self.__fileName)
     
     def IsInConflict(self):
         command2 = [self.executable, 'status', self.__fileName, '--xml']
@@ -198,6 +215,7 @@ class Plugin(object):
         command = [self.executable, 'resolved', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (result, err) = p.communicate()
+        self.pluginAdapter.Notify('load-project', self.__fileName)
     
     def SolveConflicts(self):
         if self.IsInConflict():
@@ -237,7 +255,9 @@ class Plugin(object):
         command = [self.executable, 'revert', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         p.communicate()
-        self.pluginAdapter.Notify('continue-revert', self.__fileName)
+        self.pluginAdapter.Notify('load-project', self.__fileName)
+        self.pluginAdapter.Notify('send-result', 'Reverted')
+        
     
     
     def Log(self):
