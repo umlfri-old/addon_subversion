@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<AddOn xmlns="http://umlfri.org/xmlschema/addon.xsd">
+	<Identity uri="urn:umlfri.org:plugin:svn" />
+
+	<FriendlyName name="Subversion for Team" version="0.1" />
+	<Author>
+		<Name name="Peter Turza" />
+		<Homepage url="http://umlfri.org" />
+
+		<CommonLicense name="GPL-2" />
+	</Author>
+
+	<Icon path="icon.png" />
+	<Description>
+		This plugin is svn implementation for team plugin.
+    </Description>
+
+	<Plugin>
+		<Code os="all" language="python" path="plugin" />
+	</Plugin>
+</AddOn>
