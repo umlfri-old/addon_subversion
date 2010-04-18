@@ -40,13 +40,12 @@ class Plugin(object):
         self.pluginAdapter.AddNotification('team-checkout', self.Checkout)
         
         
-        
         self.pluginAdapter.AddNotification('team-get-supported', self.GetSupported)
         
         self.SendRegistrationForCheckout()
         
         self.__fileName = None
-        self.checkinMessage = None
+        
     
     def SendRegistrationForCheckout(self):
         self.pluginAdapter.Notify('team-send-register-implementation-for-checkout', self.ID, self.description)
@@ -54,23 +53,20 @@ class Plugin(object):
     def __AddAllNotifications(self):
         # zaregistruj si vsetky callbacky
         self.pluginAdapter.AddNotification('team-get-file-data', self.GetFileData)
-        self.pluginAdapter.AddNotification('team-update', self.SvnUpdate)
+        self.pluginAdapter.AddNotification('team-update', self.Update)
         self.pluginAdapter.AddNotification('team-make-compatible', self.MakeCompatible)
         self.pluginAdapter.AddNotification('team-resolve', self.Resolve)
         self.pluginAdapter.AddNotification('team-checkin', self.Checkin)
-        self.pluginAdapter.AddNotification('team-continue-checkin', self.ContinueCheckin)
         self.pluginAdapter.AddNotification('team-revert', self.Revert)
         self.pluginAdapter.AddNotification('team-get-log', self.Log)
-        
         self.pluginAdapter.AddNotification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
         
     def __RemoveAllNotifications(self):
         self.pluginAdapter.RemoveNotification('team-get-file-data', self.GetFileData)
-        self.pluginAdapter.RemoveNotification('team-update', self.SvnUpdate)
+        self.pluginAdapter.RemoveNotification('team-update', self.Update)
         self.pluginAdapter.RemoveNotification('team-make-compatible', self.MakeCompatible)
         self.pluginAdapter.RemoveNotification('team-resolve', self.Resolve)
         self.pluginAdapter.RemoveNotification('team-checkin', self.Checkin)
-        self.pluginAdapter.RemoveNotification('team-continue-checkin', self.ContinueCheckin)
         self.pluginAdapter.RemoveNotification('team-revert', self.Revert)
         self.pluginAdapter.RemoveNotification('team-get-log', self.Log)
         self.pluginAdapter.RemoveNotification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
@@ -105,12 +101,15 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-supported', self.supported)
     
         
-    def GetFileData(self, idData, actionId, revision=None):
+    def GetFileData(self, username, password, idData, actionId, revision=None):
         if revision is None:
             rev = 'BASE'
         else:
             rev = revision
-        command = [self.executable, 'cat', self.__fileName, '-r', rev]
+        if username is None or password is None:
+            command = [self.executable, 'cat', self.__fileName, '-r', rev, '--non-interactive']
+        else:
+            command = [self.executable, 'cat', self.__fileName, '-r', rev, '--non-interactive', '--username',username,'--password',password]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
         
@@ -118,7 +117,11 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-file-data', out, idData)
             self.pluginAdapter.Notify('team-continue-'+actionId)
         else:
-            self.pluginAdapter.Notify('team-exception', err)
+            if err.lower().find('authorization') != -1:
+                    self.pluginAdapter.Notify('team-get-authorization', 'team-get-file-data', idData, actionId, revision)
+            else:
+                # inak vrat chybovu hlasku
+                self.pluginAdapter.Notify('team-exception', err)
         
     # zisti, ci je projekt pod tymto verzovacim systemom    
     def IsProjectVersioned(self):
@@ -131,7 +134,7 @@ class Plugin(object):
    
     
         
-    def SvnUpdate(self, revision=None):
+    def Update(self, username=None, password=None,revision=None):
         '''
         Run update, return new status of updated file
         '''
@@ -141,21 +144,33 @@ class Plugin(object):
         else:
             rev = revision
         
-        # run update    
-        command = [self.executable, 'update', self.__fileName, '-r', rev, '--non-interactive']
+        # run update  
+        if username is None or password is None:  
+            command = [self.executable, 'update', self.__fileName, '-r', rev, '--non-interactive']
+        else:
+            command = [self.executable, 'update', self.__fileName, '-r', rev, '--non-interactive', '--username' ,username, '--password' ,password]
+        print command
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (result, err) = p.communicate()
         
-        if self.IsInConflict():
-            # treba reloadnut a riesit konflikty
+        if p.returncode == 0:
             
-            self.pluginAdapter.Notify('team-load-project', self.__fileName)
-        
+            if self.IsInConflict():
+                # treba reloadnut a riesit konflikty
+                
+                self.pluginAdapter.Notify('team-load-project', self.__fileName)
+            
+            else:
+                # neboli lokalne zmeny a sam to prevalil
+                
+                self.pluginAdapter.Notify('team-send-result', result)
+                self.pluginAdapter.Notify('team-load-project', self.__fileName)
         else:
-            # neboli lokalne zmeny a sam to prevalil
-            
-            self.pluginAdapter.Notify('team-send-result', result)
-            self.pluginAdapter.Notify('team-load-project', self.__fileName)
+            if err.lower().find('authorization') != -1:
+                self.pluginAdapter.Notify('team-get-authorization', 'team-update', revision)
+            else:
+                # inak vrat chybovu hlasku
+                self.pluginAdapter.Notify('team-exception', err)
     
     
     def IsCompatible(self):
@@ -232,12 +247,12 @@ class Plugin(object):
     
     
     
-    def Checkin(self, message, username=None, password=None):
+    def Checkin(self, username, password, message):
         if message is None:
             self.pluginAdapter.Notify('team-exception', 'Message is None')
         
         else:
-            self.checkinMessage = message
+            
             if username is None or password is None:
                 command = [self.executable, 'commit', self.__fileName, '-m', message, '--non-interactive']
             else :
@@ -246,17 +261,15 @@ class Plugin(object):
             (out, err) = p.communicate()
             if p.returncode == 0:
                 self.pluginAdapter.Notify('team-send-result', out)
-                self.checkinMessage = None
+                
             else:
                 if err.lower().find('authorization') != -1:
-                    self.pluginAdapter.Notify('get-authorization', 'checkin')
+                    self.pluginAdapter.Notify('team-get-authorization', 'team-checkin', message)
                 else:
                     # inak vrat chybovu hlasku
                     self.pluginAdapter.Notify('team-exception', err)
         
-    def ContinueCheckin(self, username, password):
-        self.Checkin(self.checkinMessage, username, password)
-        
+    
     def Revert(self):
         print 'trying svn revert'
         command = [self.executable, 'revert', self.__fileName]
@@ -267,45 +280,66 @@ class Plugin(object):
         
     
     
-    def Log(self):
+    def Log(self, username = None, password = None):
         print 'trying svn log'
-        command = [self.executable, 'log', self.__fileName, '--xml']
+        if username is None or password is None:
+            command = [self.executable, 'log', self.__fileName, '--xml', '--non-interactive']
+        else:
+            command = [self.executable, 'log', self.__fileName, '--xml', '--non-interactive', '--username', username, '--password', password]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
-        # out ma teraz xml
-        root = etree.XML(out)
-        result = []
-        for e in root:
-            d = {}
-            d['revision'] = e.get('revision')
-            for sub in e:
-                if sub.tag == 'author':
-                    d['author'] = sub.text
-                elif sub.tag == 'date':
-                    d['date'] = sub.text
-                elif sub.tag == 'msg':
-                    d['message'] = sub.text
-            result.append(d)
+        if p.returncode == 0:
+            # out ma teraz xml
+            root = etree.XML(out)
+            result = []
+            for e in root:
+                d = {}
+                d['revision'] = e.get('revision')
+                for sub in e:
+                    if sub.tag == 'author':
+                        d['author'] = sub.text
+                    elif sub.tag == 'date':
+                        d['date'] = sub.text
+                    elif sub.tag == 'msg':
+                        d['message'] = sub.text
+                result.append(d)
+            
+            self.pluginAdapter.Notify('team-send-log', result)
+            
+        else:
+            if err.lower().find('authorization') != -1:
+                self.pluginAdapter.Notify('team-get-authorization', 'team-get-log')
+            else:
+                self.pluginAdapter.Notify('team-exception', err)
+            
         
-        self.pluginAdapter.Notify('team-send-log', result)
-        
-    def Checkout(self, implId, url, directory, revision = None):
-        print implId, self.ID
+    def Checkout(self, username, password, implId, url, directory, revision = None, ):
         if implId == self.ID:
+            
+            self.checkoutImplId = implId
+            
             print 'trying svn checkout'
             if revision is None:
                 rev = 'HEAD'
             else:
                 rev = revision
-            command = [self.executable, 'checkout', url, directory, '-r', rev]
+                
+            if username is None or password is None:
+                command = [self.executable, 'checkout', url, directory, '-r', rev, '--non-interactive']
+            else:
+                command = [self.executable, 'checkout', url, directory, '-r', rev, '--non-interactive', '--username', username, '--password', password]
+            
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
             print 'out',out
             print 'err',err
-            if err == '':
-                self.pluginAdapter.Notify('team-send-result', out)
+            if p.returncode == 0:
+                    self.pluginAdapter.Notify('team-send-result', out)
             else:
-                self.pluginAdapter.Notify('team-exception', err)
+                if err.lower().find('authorization') != -1:
+                    self.pluginAdapter.Notify('team-get-authorization', 'team-checkout', implId, url, directory, revision)
+                else:
+                    self.pluginAdapter.Notify('team-exception', err)
     
     
 # select plugin main object
