@@ -119,7 +119,7 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-file-data', out, idData)
             self.pluginAdapter.Notify('team-continue-'+actionId)
         else:
-            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
                 self.pluginAdapter.Notify('team-ask-server-cert', 'team-get-file-data', err, idData, actionId, revision)
             elif err.lower().find('authorization') != -1:
                 self.pluginAdapter.Notify('team-get-authorization', 'team-get-file-data', trust, idData, actionId, revision)
@@ -174,7 +174,7 @@ class Plugin(object):
                 self.pluginAdapter.Notify('team-load-project', self.__fileName)
         else:
             
-            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
                 self.pluginAdapter.Notify('team-ask-server-cert', 'team-update', err, revision)
             
             elif err.lower().find('authorization') != -1:
@@ -276,7 +276,7 @@ class Plugin(object):
                 self.pluginAdapter.Notify('team-send-result', out)
                 
             else:
-                if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+                if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
                     self.pluginAdapter.Notify('team-ask-server-cert', 'team-checkin', err, message)
                 if err.lower().find('authorization') != -1:
                     self.pluginAdapter.Notify('team-get-authorization', 'team-checkin', trust, message)
@@ -326,7 +326,7 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-log', result)
             
         else:
-            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
                 self.pluginAdapter.Notify('team-ask-server-cert', 'team-get-log', err)
             elif err.lower().find('authorization') != -1:
                 self.pluginAdapter.Notify('team-get-authorization', 'team-get-log', trust)
@@ -361,7 +361,7 @@ class Plugin(object):
             if p.returncode == 0:
                     self.pluginAdapter.Notify('team-send-result', out)
             else:
-                if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+                if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
                     self.pluginAdapter.Notify('team-ask-server-cert', 'team-checkout', err,implId, url, directory, revision)
                 elif err.lower().find('authorization') != -1:
                     self.pluginAdapter.Notify('team-get-authorization', 'team-checkout', trust, implId, url, directory, revision)
