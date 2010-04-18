@@ -101,15 +101,17 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-supported', self.supported)
     
         
-    def GetFileData(self, username, password, idData, actionId, revision=None):
+    def GetFileData(self, username, password, trust, idData, actionId, revision=None):
         if revision is None:
             rev = 'BASE'
         else:
             rev = revision
-        if username is None or password is None:
-            command = [self.executable, 'cat', self.__fileName, '-r', rev, '--non-interactive']
-        else:
-            command = [self.executable, 'cat', self.__fileName, '-r', rev, '--non-interactive', '--username',username,'--password',password]
+        command = [self.executable, 'cat', self.__fileName, '-r', rev, '--non-interactive']
+        if username is not None and password is not None:
+            command.extend(['--username',username,'--password',password])
+            
+        if trust:
+            command.append('--trust-server-cert')
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
         
@@ -117,8 +119,10 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-file-data', out, idData)
             self.pluginAdapter.Notify('team-continue-'+actionId)
         else:
-            if err.lower().find('authorization') != -1:
-                    self.pluginAdapter.Notify('team-get-authorization', 'team-get-file-data', idData, actionId, revision)
+            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+                self.pluginAdapter.Notify('team-ask-server-cert', 'team-get-file-data', err, idData, actionId, revision)
+            elif err.lower().find('authorization') != -1:
+                self.pluginAdapter.Notify('team-get-authorization', 'team-get-file-data', trust, idData, actionId, revision)
             else:
                 # inak vrat chybovu hlasku
                 self.pluginAdapter.Notify('team-exception', err)
@@ -134,7 +138,7 @@ class Plugin(object):
    
     
         
-    def Update(self, username=None, password=None,revision=None):
+    def Update(self, username=None, password=None, trust=False, revision=None):
         '''
         Run update, return new status of updated file
         '''
@@ -145,11 +149,14 @@ class Plugin(object):
             rev = revision
         
         # run update  
-        if username is None or password is None:  
-            command = [self.executable, 'update', self.__fileName, '-r', rev, '--non-interactive']
-        else:
-            command = [self.executable, 'update', self.__fileName, '-r', rev, '--non-interactive', '--username' ,username, '--password' ,password]
-        print command
+          
+        command = [self.executable, 'update', self.__fileName, '-r', rev, '--non-interactive']
+        if username is not None and password is not None:
+            command.extend(['--username' ,username, '--password' ,password])
+            
+        if trust:
+            command.append('--trust-server-cert')
+        
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (result, err) = p.communicate()
         
@@ -166,8 +173,12 @@ class Plugin(object):
                 self.pluginAdapter.Notify('team-send-result', result)
                 self.pluginAdapter.Notify('team-load-project', self.__fileName)
         else:
-            if err.lower().find('authorization') != -1:
-                self.pluginAdapter.Notify('team-get-authorization', 'team-update', revision)
+            
+            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+                self.pluginAdapter.Notify('team-ask-server-cert', 'team-update', err, revision)
+            
+            elif err.lower().find('authorization') != -1:
+                self.pluginAdapter.Notify('team-get-authorization', 'team-update', trust, revision)
             else:
                 # inak vrat chybovu hlasku
                 self.pluginAdapter.Notify('team-exception', err)
@@ -247,24 +258,28 @@ class Plugin(object):
     
     
     
-    def Checkin(self, username, password, message):
+    def Checkin(self, username, password, trust , message):
         if message is None:
             self.pluginAdapter.Notify('team-exception', 'Message is None')
         
         else:
+            command = [self.executable, 'commit', self.__fileName, '-m', message, '--non-interactive']
+            if username is not None and password is not None:
+                
+                command.extend(['--username',username, '--password', password])
             
-            if username is None or password is None:
-                command = [self.executable, 'commit', self.__fileName, '-m', message, '--non-interactive']
-            else :
-                command = [self.executable, 'commit', self.__fileName, '-m', message, '--non-interactive', '--username',username, '--password', password]
+            if trust:
+                command.append('--trust-server-cert')
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
             if p.returncode == 0:
                 self.pluginAdapter.Notify('team-send-result', out)
                 
             else:
+                if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+                    self.pluginAdapter.Notify('team-ask-server-cert', 'team-checkin', err, message)
                 if err.lower().find('authorization') != -1:
-                    self.pluginAdapter.Notify('team-get-authorization', 'team-checkin', message)
+                    self.pluginAdapter.Notify('team-get-authorization', 'team-checkin', trust, message)
                 else:
                     # inak vrat chybovu hlasku
                     self.pluginAdapter.Notify('team-exception', err)
@@ -280,12 +295,16 @@ class Plugin(object):
         
     
     
-    def Log(self, username = None, password = None):
+    def Log(self, username = None, password = None, trust = False):
         print 'trying svn log'
-        if username is None or password is None:
-            command = [self.executable, 'log', self.__fileName, '--xml', '--non-interactive']
-        else:
-            command = [self.executable, 'log', self.__fileName, '--xml', '--non-interactive', '--username', username, '--password', password]
+        command = [self.executable, 'log', self.__fileName, '--xml', '--non-interactive']
+        
+        if username is not None and password is not None:
+            command.extend(['--username', username, '--password', password])
+            
+        if trust:
+            command.append('--trust-server-cert')
+            
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
         if p.returncode == 0:
@@ -307,13 +326,15 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-log', result)
             
         else:
-            if err.lower().find('authorization') != -1:
-                self.pluginAdapter.Notify('team-get-authorization', 'team-get-log')
+            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+                self.pluginAdapter.Notify('team-ask-server-cert', 'team-get-log', err)
+            elif err.lower().find('authorization') != -1:
+                self.pluginAdapter.Notify('team-get-authorization', 'team-get-log', trust)
             else:
                 self.pluginAdapter.Notify('team-exception', err)
             
         
-    def Checkout(self, username, password, implId, url, directory, revision = None, ):
+    def Checkout(self, username, password, trust, implId, url, directory, revision = None, ):
         if implId == self.ID:
             
             self.checkoutImplId = implId
@@ -324,11 +345,15 @@ class Plugin(object):
             else:
                 rev = revision
                 
-            if username is None or password is None:
-                command = [self.executable, 'checkout', url, directory, '-r', rev, '--non-interactive']
-            else:
-                command = [self.executable, 'checkout', url, directory, '-r', rev, '--non-interactive', '--username', username, '--password', password]
+            command = [self.executable, 'checkout', url, directory, '-r', rev, '--non-interactive']
+                
+            if username is not None and password is not None:
+                command.extend(['--username', username, '--password', password])
             
+            
+            if trust:
+                command.append('--trust-server-cert')
+                
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
             print 'out',out
@@ -336,8 +361,10 @@ class Plugin(object):
             if p.returncode == 0:
                     self.pluginAdapter.Notify('team-send-result', out)
             else:
-                if err.lower().find('authorization') != -1:
-                    self.pluginAdapter.Notify('team-get-authorization', 'team-checkout', implId, url, directory, revision)
+                if err.lower().find('verification failed') != -1 and err.lower().find('different hostname'):
+                    self.pluginAdapter.Notify('team-ask-server-cert', 'team-checkout', err,implId, url, directory, revision)
+                elif err.lower().find('authorization') != -1:
+                    self.pluginAdapter.Notify('team-get-authorization', 'team-checkout', trust, implId, url, directory, revision)
                 else:
                     self.pluginAdapter.Notify('team-exception', err)
     
