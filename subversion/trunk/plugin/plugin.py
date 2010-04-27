@@ -12,7 +12,7 @@ import os
 
 class Plugin(object):
     '''
-    classdocs
+    Subversion plugin for Team
     '''
     
     description = 'SVN'
@@ -26,7 +26,9 @@ class Plugin(object):
     
     def __init__(self, interface):
         '''
-        Constructor
+        Constructor for Subversion plugin
+        @type interface: CInterface
+        @param interface: Plugin system interface  
         '''
         # load interface
         self.interface = interface
@@ -48,9 +50,15 @@ class Plugin(object):
         
     
     def SendRegistrationForCheckout(self):
+        '''
+        Register itself for checkout
+        '''
         self.pluginAdapter.Notify('team-send-register-implementation-for-checkout', self.ID, self.description)
     
     def __AddAllNotifications(self):
+        '''
+        Register all notifications
+        '''
         # zaregistruj si vsetky callbacky
         self.pluginAdapter.AddNotification('team-get-file-data', self.GetFileData)
         self.pluginAdapter.AddNotification('team-update', self.Update)
@@ -62,6 +70,9 @@ class Plugin(object):
         self.pluginAdapter.AddNotification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
         
     def __RemoveAllNotifications(self):
+        '''
+        Unregister all notifications
+        '''
         self.pluginAdapter.RemoveNotification('team-get-file-data', self.GetFileData)
         self.pluginAdapter.RemoveNotification('team-update', self.Update)
         self.pluginAdapter.RemoveNotification('team-make-compatible', self.MakeCompatible)
@@ -72,6 +83,12 @@ class Plugin(object):
         self.pluginAdapter.RemoveNotification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
         
     def TeamProjectOpened(self, fileName):
+        """
+        Executes when project is opened. Should check if project is versioned with this VCS. 
+        Should ask for compatibility and send team conflicts.
+        @type fileName: string
+        @param fileName: filename of project file
+        """
         
         self.__fileName = fileName
         
@@ -97,11 +114,31 @@ class Plugin(object):
             
     
     def GetSupported(self):
+        '''
+        Hook executed when team plugin demands supported commands. Notify team plugin with supported commands
+        '''
         if self.IsCompatible() and self.IsProjectVersioned():
             self.pluginAdapter.Notify('team-send-supported', self.supported)
     
         
     def GetFileData(self, username, password, trust, idData, actionId, revision=None):
+        '''
+        Hook executed when team plugin demands file data. Should notify team plugin back with data
+        or with demand for authorization or with demand for server certification trusting or with 
+        exception 
+        @type username: string
+        @param username: username
+        @type password: string
+        @param password: password
+        @type trust: bool
+        @param trust: True if server certificate has to be trusted
+        @type idData: string
+        @param idData: identification of demanded file data
+        @type actionId: string
+        @param actionId: identification of action that demanded file data
+        @type revision: string
+        @param revision: Revision of data
+        '''
         if revision is None:
             rev = 'BASE'
         else:
@@ -129,7 +166,11 @@ class Plugin(object):
         
     # zisti, ci je projekt pod tymto verzovacim systemom    
     def IsProjectVersioned(self):
-        
+        '''
+        Checks if project is version with this VCS
+        @rtype: bool
+        @return: True if project is version with this VCS, False otherwise
+        '''
         command = [self.executable, 'status', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         return p.communicate()[1] == ''
@@ -140,9 +181,18 @@ class Plugin(object):
         
     def Update(self, username=None, password=None, trust=False, revision=None):
         '''
-        Run update, return new status of updated file
+        Hook executed when team plugin demands update. Should notify team plugin back with update result
+        or with demand for authorization or with demand for server certification trusting or with 
+        exception 
+        @type username: string
+        @param username: username
+        @type password: string
+        @param password: password
+        @type trust: bool
+        @param trust: True if server certificate has to be trusted
+        @type revision: string
+        @param revision: Revision of data
         '''
-        print 'trying svn update to revision', revision
         if revision is None:
             rev = 'HEAD'
         else:
@@ -185,6 +235,12 @@ class Plugin(object):
     
     
     def IsCompatible(self):
+        '''
+        Checks if project file is compatible with this VCS. Compatible means it  should not merge
+        changes to changed working copy automatic (svn:mime-type application/octet-stream)
+        @rtype: bool
+        @return: True if it is compatible, False otherwise
+        '''
         command = [self.executable, 'propget', 'svn:mime-type', self.__fileName, '--xml']
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
@@ -203,12 +259,24 @@ class Plugin(object):
         return result
     
     def MakeCompatible(self):
+        '''
+        Hook executed when team plugin demands making project file compatible.
+        Makes project file compatible with this VCS. Compatible means it  should not merge
+        changes to changed working copy automatic (svn:mime-type application/octet-stream). 
+        Should notify team plugin back for reloading project
+        
+        '''
         command = [self.executable, 'propset', 'svn:mime-type', 'application/octet-stream', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (out, err) = p.communicate()
         self.pluginAdapter.Notify('team-load-project', self.__fileName)
     
     def IsInConflict(self):
+        '''
+        Checks if project file is in conflict
+        @rtype: bool
+        @return: True if it is in conflict, False otherwise 
+        '''
         command2 = [self.executable, 'status', self.__fileName, '--xml']
         p2 = Popen(command2, stdout=PIPE, stderr=PIPE)
         (out, err2) = p2.communicate()
@@ -225,6 +293,11 @@ class Plugin(object):
         return False
     
     def GetConflictingFiles(self):
+        '''
+        Gets conflicting files
+        @rtype: dic
+        @return: mine, base and new filenames
+        '''
         if self.IsInConflict():
             command3 = [self.executable, 'info', self.__fileName, '--xml']
             p3 = Popen(command3, stdout=PIPE, stderr=PIPE)
@@ -243,7 +316,10 @@ class Plugin(object):
             
     
     def Resolve(self):
-        
+        '''
+        Hook executed when team plugin demands resolving of VCS conflict. 
+        Should notify team plugin back with reloading of project.
+        '''
         command = [self.executable, 'resolved', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         (result, err) = p.communicate()
@@ -251,6 +327,9 @@ class Plugin(object):
         self.pluginAdapter.Notify('team-load-project', self.__fileName)
     
     def SolveConflicts(self):
+        '''
+        Hook executed when team plugin demands solving conflicts in opened project
+        '''
         if self.IsInConflict():
             self.pluginAdapter.Notify('team-solve-conflicts', self.GetConflictingFiles(), self.__fileName)
         else:
@@ -259,6 +338,19 @@ class Plugin(object):
     
     
     def Checkin(self, username, password, trust , message):
+        '''
+        Hook executed when team plugin demands checkin. Should notify team plugin back with checkin result
+        or with demand for authorization or with demand for server certification trusting or with 
+        exception 
+        @type username: string
+        @param username: username
+        @type password: string
+        @param password: password
+        @type trust: bool
+        @param trust: True if server certificate has to be trusted
+        @type message: string
+        @param message: Checkin message
+        '''
         if message is None:
             self.pluginAdapter.Notify('team-exception', 'Message is None')
         
@@ -286,7 +378,9 @@ class Plugin(object):
         
     
     def Revert(self):
-        print 'trying svn revert'
+        '''
+        Hook executed when team plugin demands revert. Should notify back with project reload and result.
+        '''
         command = [self.executable, 'revert', self.__fileName]
         p = Popen(command, stdout=PIPE, stderr=PIPE)
         p.communicate()
@@ -296,7 +390,17 @@ class Plugin(object):
     
     
     def Log(self, username = None, password = None, trust = False):
-        print 'trying svn log'
+        '''
+        Hook executed when team plugin demands logs. Should notify team plugin back with log result
+        or with demand for authorization or with demand for server certification trusting or with 
+        exception 
+        @type username: string
+        @param username: username
+        @type password: string
+        @param password: password
+        @type trust: bool
+        @param trust: True if server certificate has to be trusted
+        '''
         command = [self.executable, 'log', self.__fileName, '--xml', '--non-interactive']
         
         if username is not None and password is not None:
@@ -335,11 +439,29 @@ class Plugin(object):
             
         
     def Checkout(self, username, password, trust, implId, url, directory, revision = None, ):
+        '''
+        Hook executed when team plugin demands checkout. Should notify team plugin back with checkout result
+        or with demand for authorization or with demand for server certification trusting or with 
+        exception 
+        @type username: string
+        @param username: username
+        @type password: string
+        @param password: password
+        @type trust: bool
+        @param trust: True if server certificate has to be trusted
+        @type implId: string
+        @param implId: Identification of implementation that should perform checkout
+        @type url: string
+        @param url: Checkout url
+        @type directory: string
+        @param directory: checkout directory
+        @type revision: string
+        @param revision: Revision of data
+        '''
         if implId == self.ID:
             
             self.checkoutImplId = implId
             
-            print 'trying svn checkout'
             if revision is None:
                 rev = 'HEAD'
             else:
@@ -356,8 +478,7 @@ class Plugin(object):
                 
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
-            print 'out',out
-            print 'err',err
+            
             if p.returncode == 0:
                     self.pluginAdapter.Notify('team-send-result', out)
             else:
