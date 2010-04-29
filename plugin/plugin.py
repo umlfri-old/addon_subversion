@@ -7,8 +7,10 @@ Created on 27.2.2010
 
 from subprocess import Popen, PIPE
 from imports.etree import etree
+from imports.gtk2 import gtk
 
 import os
+import uuid
 
 class Plugin(object):
     '''
@@ -19,10 +21,9 @@ class Plugin(object):
     
     ID = 'svn-plugin-for-team'
     
-    executable = 'svn'
-    
     supported = ['checkin', 'diff', 'log', 'update', 'revert', 'resolve']
     
+    configFilename = os.path.join(os.path.dirname(__file__), 'etc', 'config.xml')
     
     def __init__(self, interface):
         '''
@@ -32,6 +33,7 @@ class Plugin(object):
         '''
         # load interface
         self.interface = interface
+        self.interface.SetGtkMainloop()
         
         self.pluginAdapter = self.interface.GetAdapter()
         self.pluginGuiManager = self.pluginAdapter.GetGuiManager()
@@ -40,15 +42,85 @@ class Plugin(object):
         self.pluginAdapter.AddNotification('team-project-opened', self.TeamProjectOpened)
         self.pluginAdapter.AddNotification('team-register-for-checkout', self.SendRegistrationForCheckout)
         self.pluginAdapter.AddNotification('team-checkout', self.Checkout)
+        self.pluginAdapter.AddNotification('team-send-team-menu-id', self.AddMenu)
         
         
         self.pluginAdapter.AddNotification('team-get-supported', self.GetSupported)
+        self.pluginAdapter.Notify('team-get-team-menu-id')
+        
         
         self.SendRegistrationForCheckout()
         
-        self.__fileName = None
+        self.ReadConfig()
         
+        self.__fileName = None
     
+    def AddMenu(self, teamMenuId):
+        '''
+        Adds svn menu under team menu
+        @type teamMenuId: string
+        @param teamMenuId: id of team menu
+        '''
+        teamMainMenu = self.pluginGuiManager.GetMainMenu().GetItem(teamMenuId)
+        teamMenuSubmenu = teamMainMenu.GetSubmenu()
+        teamMenuSubmenu.AddMenuItem(str(uuid.uuid1()),self.ShowConfig,-1,'SVN Config',None,None)
+        
+    def ShowConfig(self, arg):
+        '''
+        Shows configuration dialog
+        '''
+        def on_executableFileChooser_file_set(wid):
+            fn = wid.get_filename()
+            executableTxt.set_text(fn)
+        
+        wTree = gtk.Builder()
+        gladeFile = os.path.join(os.path.dirname(__file__), "gui.glade")
+        wTree.add_from_file( gladeFile )
+        configDialog = wTree.get_object('svnConfigDlg')
+        executableTxt = wTree.get_object('executableTxt')
+        executableFileChooser = wTree.get_object('executableFileChooser')
+        executableFileChooser.connect('file-set', on_executableFileChooser_file_set)
+        executableTxt.set_text(self.executable)
+        response = configDialog.run()
+        configDialog.hide()
+        if response == 0:
+            executable = executableTxt.get_text()
+            self.WriteConfig(executable)
+        configDialog.destroy()
+    
+    def ReadConfig(self):
+        '''
+        Reads configuration file etc/config.xml
+        '''
+        try:
+            configFile = open(self.configFilename)
+            
+            config = etree.XML(configFile.read())
+            for e in config:
+                if e.tag == 'executable':
+                    self.executable = e.text
+            configFile.close()
+        except Exception, e:
+            self.pluginAdapter.Notify('team-exception', e)
+    
+    def WriteConfig(self, executable):
+        '''
+        Writes configuration file
+        @type executable: string
+        @param executable: svn executable
+        '''
+        configFile = open(self.configFilename)
+        config = etree.XML(configFile.read())
+        for e in config:
+            if e.tag == 'executable':
+                e.text = executable
+        configFile.close()
+        configFile = open(self.configFilename, 'w')
+        configText = '<?xml version="1.0" encoding="utf-8"?>\n'+etree.tostring(config, encoding='utf-8')
+        configFile.write(configText)
+        configFile.close()
+        self.ReadConfig()
+        
     def SendRegistrationForCheckout(self):
         '''
         Register itself for checkout
