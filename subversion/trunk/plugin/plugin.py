@@ -101,7 +101,7 @@ class Plugin(object):
                     self.executable = e.text
             configFile.close()
         except Exception, e:
-            self.pluginAdapter.Notify('team-exception', e)
+            self.pluginAdapter.Notify('team-exception', str(e))
     
     def WriteConfig(self, executable):
         '''
@@ -221,8 +221,12 @@ class Plugin(object):
             
         if trust:
             command.append('--trust-server-cert')
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
-        (out, err) = p.communicate()
+        try:
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            (out, err) = p.communicate()
+        except Exception, e:
+            self.pluginAdapter.Notify('team-exception', str(e))
+            return
         
         if p.returncode == 0:
             self.pluginAdapter.Notify('team-send-file-data', out, idData)
@@ -243,9 +247,12 @@ class Plugin(object):
         @rtype: bool
         @return: True if project is version with this VCS, False otherwise
         '''
-        command = [self.executable, 'status', self.__fileName]
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
-        return p.communicate()[1] == ''
+        try:
+            command = [self.executable, 'status', self.__fileName]
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            return p.communicate()[1] == ''
+        except:
+            return False
         
      
    
@@ -279,8 +286,12 @@ class Plugin(object):
         if trust:
             command.append('--trust-server-cert')
         
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
-        (result, err) = p.communicate()
+        try:
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            (result, err) = p.communicate()
+        except Exception, e:
+            self.pluginAdapter.Notify('team-exception', str(e))
+            return
         
         if p.returncode == 0:
             
@@ -314,8 +325,12 @@ class Plugin(object):
         @return: True if it is compatible, False otherwise
         '''
         command = [self.executable, 'propget', 'svn:mime-type', self.__fileName, '--xml']
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
-        (out, err) = p.communicate()
+        try:
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            (out, err) = p.communicate()
+        except Exception, e:
+            return False
+        
         result = False
         if p.returncode == 0:
             r = etree.XML(out)
@@ -339,8 +354,12 @@ class Plugin(object):
         
         '''
         command = [self.executable, 'propset', 'svn:mime-type', 'application/octet-stream', self.__fileName]
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
-        (out, err) = p.communicate()
+        try:
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            (out, err) = p.communicate()
+        except Exception, e:
+            self.pluginAdapter.Notify('team-exception', str(e))
+            return
         self.pluginAdapter.Notify('team-load-project', self.__fileName)
     
     def IsInConflict(self):
@@ -349,9 +368,13 @@ class Plugin(object):
         @rtype: bool
         @return: True if it is in conflict, False otherwise 
         '''
-        command2 = [self.executable, 'status', self.__fileName, '--xml']
-        p2 = Popen(command2, stdout=PIPE, stderr=PIPE)
-        (out, err2) = p2.communicate()
+        command = [self.executable, 'status', self.__fileName, '--xml']
+        try:
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            (out, err) = p.communicate()
+        except Exception, e:
+#            self.pluginAdapter.Notify('team-exception', str(e))
+            return False
         
         
         r = etree.XML(out)
@@ -371,9 +394,13 @@ class Plugin(object):
         @return: mine, base and new filenames
         '''
         if self.IsInConflict():
-            command3 = [self.executable, 'info', self.__fileName, '--xml']
-            p3 = Popen(command3, stdout=PIPE, stderr=PIPE)
-            (out, err2) = p3.communicate()
+            command = [self.executable, 'info', self.__fileName, '--xml']
+            try:
+                p = Popen(command, stdout=PIPE, stderr=PIPE)
+                (out, err) = p.communicate()
+            except Exception, e:
+                self.pluginAdapter.Notify('team-exception', str(e))
+                return
             r = etree.XML(out)
             baseFileName = r.find('.//prev-base-file').text
             newFileName = r.find('.//cur-base-file').text
@@ -393,9 +420,12 @@ class Plugin(object):
         Should notify team plugin back with reloading of project.
         '''
         command = [self.executable, 'resolved', self.__fileName]
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
-        (result, err) = p.communicate()
-        print result, err
+        try:
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            (out, err) = p.communicate()
+        except Exception, e:
+            self.pluginAdapter.Notify('team-exception', str(e))
+            return
         self.pluginAdapter.Notify('team-load-project', self.__fileName)
     
     def SolveConflicts(self):
@@ -434,8 +464,12 @@ class Plugin(object):
             
             if trust:
                 command.append('--trust-server-cert')
-            p = Popen(command, stdout=PIPE, stderr=PIPE)
-            (out, err) = p.communicate()
+            try:
+                p = Popen(command, stdout=PIPE, stderr=PIPE)
+                (out, err) = p.communicate()
+            except Exception, e:
+                self.pluginAdapter.Notify('team-exception', str(e))
+                return
             if p.returncode == 0:
                 self.pluginAdapter.Notify('team-send-result', out)
                 
@@ -454,8 +488,12 @@ class Plugin(object):
         Hook executed when team plugin demands revert. Should notify back with project reload and result.
         '''
         command = [self.executable, 'revert', self.__fileName]
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
-        p.communicate()
+        try:
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            (out, err) = p.communicate()
+        except Exception, e:
+            self.pluginAdapter.Notify('team-exception', str(e))
+            return
         self.pluginAdapter.Notify('team-load-project', self.__fileName)
         self.pluginAdapter.Notify('team-send-result', 'Reverted')
         
@@ -481,8 +519,12 @@ class Plugin(object):
         if trust:
             command.append('--trust-server-cert')
             
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
-        (out, err) = p.communicate()
+        try:
+            p = Popen(command, stdout=PIPE, stderr=PIPE)
+            (out, err) = p.communicate()
+        except Exception, e:
+            self.pluginAdapter.Notify('team-exception', str(e))
+            return
         if p.returncode == 0:
             # out ma teraz xml
             root = etree.XML(out)
@@ -548,8 +590,12 @@ class Plugin(object):
             if trust:
                 command.append('--trust-server-cert')
                 
-            p = Popen(command, stdout=PIPE, stderr=PIPE)
-            (out, err) = p.communicate()
+            try:
+                p = Popen(command, stdout=PIPE, stderr=PIPE)
+                (out, err) = p.communicate()
+            except Exception, e:
+                self.pluginAdapter.Notify('team-exception', str(e))
+                return
             
             if p.returncode == 0:
                     self.pluginAdapter.Notify('team-send-result', out)
