@@ -11,6 +11,7 @@ from imports.gtk2 import gtk
 
 import os
 import uuid
+import re
 
 class Plugin(object):
     '''
@@ -24,6 +25,10 @@ class Plugin(object):
     supported = ['checkin', 'diff', 'log', 'update', 'revert', 'resolve']
     
     configFilename = os.path.join(os.path.dirname(__file__), 'etc', 'config.xml')
+    
+    authorizationRegular = '.*authorization[\s]*failed.*'
+    
+    trustServerCertRegular = '.*verification[\s]*failed(?!.*different[\s]*hostname.*)'
     
     def __init__(self, interface):
         '''
@@ -126,6 +131,29 @@ class Plugin(object):
         Register itself for checkout
         '''
         self.pluginAdapter.Notify('team-send-register-implementation-for-checkout', self.ID, self.description)
+    
+    def IsAuthorizationFail(self, err):
+        '''
+        Check if error message gives authorization fail
+        @type err: str
+        @param err: error message
+        @rtype: bool
+        @return: True if error message gives authorization fail
+        '''
+        r = re.compile(self.authorizationRegular, re.DOTALL)
+        return r.match(err) is not None
+    
+    
+    def IsTrustServerCertFail(self, err):
+        '''
+        Check if error message gives trust server cert fail
+        @type err: str
+        @param err: error message
+        @rtype: bool
+        @return: True if error message gives trust server cert fail
+        '''
+        r = re.compile(self.trustServerCertRegular, re.DOTALL)
+        return r.match(err) is not None
     
     def __AddAllNotifications(self):
         '''
@@ -232,9 +260,9 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-file-data', out, idData)
             self.pluginAdapter.Notify('team-continue-'+actionId)
         else:
-            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
+            if self.IsTrustServerCertFail(err):
                 self.pluginAdapter.Notify('team-ask-server-cert', 'team-get-file-data', err, idData, actionId, revision)
-            elif err.lower().find('authorization') != -1:
+            elif self.IsAuthorizationFail(err):
                 self.pluginAdapter.Notify('team-get-authorization', 'team-get-file-data', trust, idData, actionId, revision)
             else:
                 # inak vrat chybovu hlasku
@@ -307,10 +335,10 @@ class Plugin(object):
                 self.pluginAdapter.Notify('team-load-project', self.__fileName)
         else:
             
-            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
+            if self.IsTrustServerCertFail(err):
                 self.pluginAdapter.Notify('team-ask-server-cert', 'team-update', err, revision)
             
-            elif err.lower().find('authorization') != -1:
+            elif self.IsAuthorizationFail(err):
                 self.pluginAdapter.Notify('team-get-authorization', 'team-update', trust, revision)
             else:
                 # inak vrat chybovu hlasku
@@ -474,9 +502,9 @@ class Plugin(object):
                 self.pluginAdapter.Notify('team-send-result', out)
                 
             else:
-                if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
+                if self.IsTrustServerCertFail(err):
                     self.pluginAdapter.Notify('team-ask-server-cert', 'team-checkin', err, message)
-                if err.lower().find('authorization') != -1:
+                if self.IsAuthorizationFail(err):
                     self.pluginAdapter.Notify('team-get-authorization', 'team-checkin', trust, message)
                 else:
                     # inak vrat chybovu hlasku
@@ -544,9 +572,9 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-send-log', result)
             
         else:
-            if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
+            if self.IsTrustServerCertFail(err):
                 self.pluginAdapter.Notify('team-ask-server-cert', 'team-get-log', err)
-            elif err.lower().find('authorization') != -1:
+            elif self.IsAuthorizationFail(err):
                 self.pluginAdapter.Notify('team-get-authorization', 'team-get-log', trust)
             else:
                 self.pluginAdapter.Notify('team-exception', err)
@@ -600,9 +628,9 @@ class Plugin(object):
             if p.returncode == 0:
                     self.pluginAdapter.Notify('team-send-result', out)
             else:
-                if err.lower().find('verification failed') != -1 and err.lower().find('different hostname')==-1:
+                if self.IsTrustServerCertFail(err):
                     self.pluginAdapter.Notify('team-ask-server-cert', 'team-checkout', err,implId, url, directory, revision)
-                elif err.lower().find('authorization') != -1:
+                elif self.IsAuthorizationFail(err):
                     self.pluginAdapter.Notify('team-get-authorization', 'team-checkout', trust, implId, url, directory, revision)
                 else:
                     self.pluginAdapter.Notify('team-exception', err)
