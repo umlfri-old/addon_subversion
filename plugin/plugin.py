@@ -12,6 +12,9 @@ from imports.gtk2 import gtk
 import os
 import uuid
 import re
+import gettext
+import locale
+import sys
 
 class Plugin(object):
     '''
@@ -30,6 +33,9 @@ class Plugin(object):
     
     trustServerCertRegular = '.*verification[\s]*failed(?!.*different[\s]*hostname.*)'
     
+    localeDir = os.path.join(os.path.dirname(__file__),'locale')
+    localeDomain = 'subversion_plugin'
+    
     def __init__(self, interface):
         '''
         Constructor for Subversion plugin
@@ -43,6 +49,18 @@ class Plugin(object):
         self.pluginAdapter = self.interface.GetAdapter()
         self.pluginGuiManager = self.pluginAdapter.GetGuiManager()
         
+        # localization
+        try:
+            trans = gettext.translation(self.localeDomain, self.localeDir,[self.FindLanguage()])
+            trans.install(unicode=True)
+        except IOError, e:
+            print e
+            # if no localization is found, fallback to en
+            trans = gettext.translation(self.localeDomain, self.localeDir,['en'])
+            trans.install(unicode=True)
+        if self.localeDir is not None:
+            gtk.glade.bindtextdomain(self.localeDomain, self.localeDir.encode(sys.getfilesystemencoding()))
+            gtk.glade.textdomain(self.localeDomain)
         
         self.pluginAdapter.AddNotification('team-project-opened', self.TeamProjectOpened)
         self.pluginAdapter.AddNotification('team-register-for-checkout', self.SendRegistrationForCheckout)
@@ -60,6 +78,21 @@ class Plugin(object):
         
         self.__fileName = None
     
+    def FindLanguage(self):
+        '''
+        Finds locale set language
+        '''
+        for e in ('LANGUAGE', 'LC_ALL', 'LC_MESSAGES', 'LANG'):
+            if e in os.environ:
+                return os.environ[e]
+        tmp = locale.getdefaultlocale()
+        if tmp[0] is None:
+            return 'POSIX'
+        elif tmp[1] is None:
+            return tmp[0]
+        else:
+            return '.'.join(tmp)
+    
     def AddMenu(self, teamMenuId):
         '''
         Adds svn menu under team menu
@@ -68,7 +101,7 @@ class Plugin(object):
         '''
         teamMainMenu = self.pluginGuiManager.GetMainMenu().GetItem(teamMenuId)
         teamMenuSubmenu = teamMainMenu.GetSubmenu()
-        teamMenuSubmenu.AddMenuItem(str(uuid.uuid1()),self.ShowConfig,-1,'SVN Config',None,None)
+        teamMenuSubmenu.AddMenuItem(str(uuid.uuid1()),self.ShowConfig,-1,_('SVN Config'),None,None)
         
     def ShowConfig(self, arg):
         '''
@@ -463,7 +496,7 @@ class Plugin(object):
         if self.IsInConflict():
             self.pluginAdapter.Notify('team-solve-conflicts', self.GetConflictingFiles(), self.__fileName)
         else:
-            self.pluginAdapter.Notify('team-send-result', 'Project is not in conflict')
+            self.pluginAdapter.Notify('team-send-result', _('Project is not in conflict'))
     
     
     
@@ -523,7 +556,7 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-exception', str(e))
             return
         self.pluginAdapter.Notify('team-load-project', self.__fileName)
-        self.pluginAdapter.Notify('team-send-result', 'Reverted')
+        self.pluginAdapter.Notify('team-send-result', _('Project reverted'))
         
     
     
