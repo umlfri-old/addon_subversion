@@ -192,7 +192,7 @@ class Plugin(object):
         '''
         Register all notifications
         '''
-        # zaregistruj si vsetky callbacky
+        # register all callbacks
         self.pluginAdapter.AddNotification('team-get-file-data', self.GetFileData)
         self.pluginAdapter.AddNotification('team-update', self.Update)
         self.pluginAdapter.AddNotification('team-make-compatible', self.MakeCompatible)
@@ -232,7 +232,7 @@ class Plugin(object):
             pass
       
         if self.IsProjectVersioned():
-            # pridaj si vsetky callbacky
+            # add all callbacks
             self.__AddAllNotifications()
             
             if not self.IsCompatible():
@@ -298,10 +298,10 @@ class Plugin(object):
             elif self.IsAuthorizationFail(err):
                 self.pluginAdapter.Notify('team-get-authorization', 'team-get-file-data', trust, idData, actionId, revision)
             else:
-                # inak vrat chybovu hlasku
+                
                 self.pluginAdapter.Notify('team-exception', err)
         
-    # zisti, ci je projekt pod tymto verzovacim systemom    
+     
     def IsProjectVersioned(self):
         '''
         Checks if project is version with this VCS
@@ -338,7 +338,7 @@ class Plugin(object):
         else:
             rev = revision
         
-        # run update  
+          
           
         command = [self.executable, 'update', self.__fileName, '-r', rev, '--non-interactive']
         if username is not None and password is not None:
@@ -357,12 +357,12 @@ class Plugin(object):
         if p.returncode == 0:
             
             if self.IsInConflict():
-                # treba reloadnut a riesit konflikty
+                
                 
                 self.pluginAdapter.Notify('team-load-project', self.__fileName)
             
             else:
-                # neboli lokalne zmeny a sam to prevalil
+                
                 
                 self.pluginAdapter.Notify('team-send-result', result)
                 self.pluginAdapter.Notify('team-load-project', self.__fileName)
@@ -374,7 +374,7 @@ class Plugin(object):
             elif self.IsAuthorizationFail(err):
                 self.pluginAdapter.Notify('team-get-authorization', 'team-update', trust, revision)
             else:
-                # inak vrat chybovu hlasku
+                
                 self.pluginAdapter.Notify('team-exception', err)
     
     
@@ -434,7 +434,6 @@ class Plugin(object):
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
         except Exception, e:
-#            self.pluginAdapter.Notify('team-exception', str(e))
             return False
         
         
@@ -540,7 +539,7 @@ class Plugin(object):
                 if self.IsAuthorizationFail(err):
                     self.pluginAdapter.Notify('team-get-authorization', 'team-checkin', trust, message)
                 else:
-                    # inak vrat chybovu hlasku
+                    
                     self.pluginAdapter.Notify('team-exception', err)
         
     
@@ -587,7 +586,7 @@ class Plugin(object):
             self.pluginAdapter.Notify('team-exception', str(e))
             return
         if p.returncode == 0:
-            # out ma teraz xml
+            
             root = etree.XML(out)
             result = []
             for e in root:
