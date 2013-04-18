@@ -15,7 +15,11 @@
 		This plugin is svn implementation for team plugin.
     </Description>
 
+    <Dependencies>
+        <AddOn uri="urn:umlfri.org:starters:python" />
+    </Dependencies>
+
 	<Plugin>
-		<Code os="all" language="python" path="plugin" />
+		<Code os="all" language="pythonNew" path="plugin" />
 	</Plugin>
 </AddOn>
