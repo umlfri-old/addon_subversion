@@ -8,6 +8,7 @@ Created on 27.2.2010
 from subprocess import Popen, PIPE
 from imports.etree import etree
 from imports.gtk2 import gtk
+from org.umlfri.api.mainLoops import GtkMainLoop
 
 import os
 import uuid
@@ -44,10 +45,10 @@ class Plugin(object):
         '''
         # load interface
         self.interface = interface
-        self.interface.SetGtkMainloop()
+        self.interface.set_main_loop(GtkMainLoop())
         
-        self.pluginAdapter = self.interface.GetAdapter()
-        self.pluginGuiManager = self.pluginAdapter.GetGuiManager()
+        self.interface = self.interface
+        self.pluginGuiManager = self.interface.gui_manager
         
         # localization
         try:
@@ -62,14 +63,14 @@ class Plugin(object):
             gtk.glade.bindtextdomain(self.localeDomain, self.localeDir.encode(sys.getfilesystemencoding()))
             gtk.glade.textdomain(self.localeDomain)
         
-        self.pluginAdapter.AddNotification('team-project-opened', self.TeamProjectOpened)
-        self.pluginAdapter.AddNotification('team-register-for-checkout', self.SendRegistrationForCheckout)
-        self.pluginAdapter.AddNotification('team-checkout', self.Checkout)
-        self.pluginAdapter.AddNotification('team-send-team-menu-id', self.AddMenu)
+        self.interface.add_notification('team-project-opened', self.TeamProjectOpened)
+        self.interface.add_notification('team-register-for-checkout', self.SendRegistrationForCheckout)
+        self.interface.add_notification('team-checkout', self.Checkout)
+        self.interface.add_notification('team-send-team-menu-id', self.AddMenu)
         
         
-        self.pluginAdapter.AddNotification('team-get-supported', self.GetSupported)
-        self.pluginAdapter.Notify('team-get-team-menu-id')
+        self.interface.add_notification('team-get-supported', self.GetSupported)
+        self.interface.notify('team-get-team-menu-id')
         
         
         self.SendRegistrationForCheckout()
@@ -99,9 +100,11 @@ class Plugin(object):
         @type teamMenuId: string
         @param teamMenuId: id of team menu
         '''
-        teamMainMenu = self.pluginGuiManager.GetMainMenu().GetItem(teamMenuId)
-        teamMenuSubmenu = teamMainMenu.GetSubmenu()
-        teamMenuSubmenu.AddMenuItem(str(uuid.uuid1()),self.ShowConfig,-1,_('SVN Config'),None,None)
+        menu = self.interface.gui_manager.main_menu.add_menu_item('subversionMenu', '', -1, 'SubVersion')
+        menu.visible = True
+        menu.add_submenu()
+        submenu = menu.submenu
+        submenu.add_menu_item(str(uuid.uuid1()),self.ShowConfig,-1,_('SVN Config'),None,None)
         
     def ShowConfig(self, arg):
         '''
@@ -139,7 +142,7 @@ class Plugin(object):
                     self.executable = e.text
             configFile.close()
         except Exception, e:
-            self.pluginAdapter.Notify('team-exception', str(e))
+            self.interface.notify('team-exception', str(e))
     
     def WriteConfig(self, executable):
         '''
@@ -163,7 +166,7 @@ class Plugin(object):
         '''
         Register itself for checkout
         '''
-        self.pluginAdapter.Notify('team-send-register-implementation-for-checkout', self.ID, self.description)
+        self.interface.notify('team-send-register-implementation-for-checkout', self.ID, self.description)
     
     def IsAuthorizationFail(self, err):
         '''
@@ -193,27 +196,27 @@ class Plugin(object):
         Register all notifications
         '''
         # register all callbacks
-        self.pluginAdapter.AddNotification('team-get-file-data', self.GetFileData)
-        self.pluginAdapter.AddNotification('team-update', self.Update)
-        self.pluginAdapter.AddNotification('team-make-compatible', self.MakeCompatible)
-        self.pluginAdapter.AddNotification('team-resolve', self.Resolve)
-        self.pluginAdapter.AddNotification('team-checkin', self.Checkin)
-        self.pluginAdapter.AddNotification('team-revert', self.Revert)
-        self.pluginAdapter.AddNotification('team-get-log', self.Log)
-        self.pluginAdapter.AddNotification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
+        self.interface.add_notification('team-get-file-data', self.GetFileData)
+        self.interface.add_notification('team-update', self.Update)
+        self.interface.add_notification('team-make-compatible', self.MakeCompatible)
+        self.interface.add_notification('team-resolve', self.Resolve)
+        self.interface.add_notification('team-checkin', self.Checkin)
+        self.interface.add_notification('team-revert', self.Revert)
+        self.interface.add_notification('team-get-log', self.Log)
+        self.interface.add_notification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
         
     def __RemoveAllNotifications(self):
         '''
         Unregister all notifications
         '''
-        self.pluginAdapter.RemoveNotification('team-get-file-data', self.GetFileData)
-        self.pluginAdapter.RemoveNotification('team-update', self.Update)
-        self.pluginAdapter.RemoveNotification('team-make-compatible', self.MakeCompatible)
-        self.pluginAdapter.RemoveNotification('team-resolve', self.Resolve)
-        self.pluginAdapter.RemoveNotification('team-checkin', self.Checkin)
-        self.pluginAdapter.RemoveNotification('team-revert', self.Revert)
-        self.pluginAdapter.RemoveNotification('team-get-log', self.Log)
-        self.pluginAdapter.RemoveNotification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
+        self.interface.remove_notification('team-get-file-data', self.GetFileData)
+        self.interface.remove_notification('team-update', self.Update)
+        self.interface.remove_notification('team-make-compatible', self.MakeCompatible)
+        self.interface.remove_notification('team-resolve', self.Resolve)
+        self.interface.remove_notification('team-checkin', self.Checkin)
+        self.interface.remove_notification('team-revert', self.Revert)
+        self.interface.remove_notification('team-get-log', self.Log)
+        self.interface.remove_notification('team-solve-conflicts-in-opened-project', self.SolveConflicts)
         
     def TeamProjectOpened(self, fileName):
         """
@@ -230,19 +233,21 @@ class Plugin(object):
             self.__RemoveAllNotifications()
         except Exception, e:
             pass
-      
+
+        print("ahoj predverzia")
         if self.IsProjectVersioned():
+            print("ahoj verzia")
             # add all callbacks
             self.__AddAllNotifications()
             
             if not self.IsCompatible():
                 
-                self.pluginAdapter.Notify('team-ask-compatible')
+                self.interface.notify('team-ask-compatible')
             else:
                 self.GetSupported()
                 if self.IsInConflict():
                     
-                    self.pluginAdapter.Notify('team-solve-conflicts', self.GetConflictingFiles(), self.__fileName)
+                    self.interface.notify('team-solve-conflicts', self.GetConflictingFiles(), self.__fileName)
         
             
     
@@ -251,7 +256,7 @@ class Plugin(object):
         Hook executed when team plugin demands supported commands. Notify team plugin with supported commands
         '''
         if self.IsCompatible() and self.IsProjectVersioned():
-            self.pluginAdapter.Notify('team-send-supported', self.supported)
+            self.interface.notify('team-send-supported', self.supported)
     
         
     def GetFileData(self, username, password, trust, idData, actionId, revision=None):
@@ -286,20 +291,20 @@ class Plugin(object):
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
         except Exception, e:
-            self.pluginAdapter.Notify('team-exception', str(e))
+            self.interface.notify('team-exception', str(e))
             return
         
         if p.returncode == 0:
-            self.pluginAdapter.Notify('team-send-file-data', out, idData)
-            self.pluginAdapter.Notify('team-continue-'+actionId)
+            self.interface.notify('team-send-file-data', out, idData)
+            self.interface.notify('team-continue-'+actionId)
         else:
             if self.IsTrustServerCertFail(err):
-                self.pluginAdapter.Notify('team-ask-server-cert', 'team-get-file-data', err, idData, actionId, revision)
+                self.interface.notify('team-ask-server-cert', 'team-get-file-data', err, idData, actionId, revision)
             elif self.IsAuthorizationFail(err):
-                self.pluginAdapter.Notify('team-get-authorization', 'team-get-file-data', trust, idData, actionId, revision)
+                self.interface.notify('team-get-authorization', 'team-get-file-data', trust, idData, actionId, revision)
             else:
                 
-                self.pluginAdapter.Notify('team-exception', err)
+                self.interface.notify('team-exception', err)
         
      
     def IsProjectVersioned(self):
@@ -310,8 +315,11 @@ class Plugin(object):
         '''
         try:
             command = [self.executable, 'status', self.__fileName]
+
             p = Popen(command, stdout=PIPE, stderr=PIPE)
-            return p.communicate()[1] == ''
+            a = p.communicate()[1]
+            print(a)
+            return a == ''
         except:
             return False
         
@@ -351,7 +359,7 @@ class Plugin(object):
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (result, err) = p.communicate()
         except Exception, e:
-            self.pluginAdapter.Notify('team-exception', str(e))
+            self.interface.notify('team-exception', str(e))
             return
         
         if p.returncode == 0:
@@ -359,23 +367,23 @@ class Plugin(object):
             if self.IsInConflict():
                 
                 
-                self.pluginAdapter.Notify('team-load-project', self.__fileName)
+                self.interface.notify('team-load-project', self.__fileName)
             
             else:
                 
                 
-                self.pluginAdapter.Notify('team-send-result', result)
-                self.pluginAdapter.Notify('team-load-project', self.__fileName)
+                self.interface.notify('team-send-result', result)
+                self.interface.notify('team-load-project', self.__fileName)
         else:
             
             if self.IsTrustServerCertFail(err):
-                self.pluginAdapter.Notify('team-ask-server-cert', 'team-update', err, revision)
+                self.interface.notify('team-ask-server-cert', 'team-update', err, revision)
             
             elif self.IsAuthorizationFail(err):
-                self.pluginAdapter.Notify('team-get-authorization', 'team-update', trust, revision)
+                self.interface.notify('team-get-authorization', 'team-update', trust, revision)
             else:
                 
-                self.pluginAdapter.Notify('team-exception', err)
+                self.interface.notify('team-exception', err)
     
     
     def IsCompatible(self):
@@ -419,9 +427,9 @@ class Plugin(object):
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
         except Exception, e:
-            self.pluginAdapter.Notify('team-exception', str(e))
+            self.interface.notify('team-exception', str(e))
             return
-        self.pluginAdapter.Notify('team-load-project', self.__fileName)
+        self.interface.notify('team-load-project', self.__fileName)
     
     def IsInConflict(self):
         '''
@@ -459,7 +467,7 @@ class Plugin(object):
                 p = Popen(command, stdout=PIPE, stderr=PIPE)
                 (out, err) = p.communicate()
             except Exception, e:
-                self.pluginAdapter.Notify('team-exception', str(e))
+                self.interface.notify('team-exception', str(e))
                 return
             r = etree.XML(out)
             baseFileName = r.find('.//prev-base-file').text
@@ -484,18 +492,18 @@ class Plugin(object):
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
         except Exception, e:
-            self.pluginAdapter.Notify('team-exception', str(e))
+            self.interface.notify('team-exception', str(e))
             return
-        self.pluginAdapter.Notify('team-load-project', self.__fileName)
+        self.interface.notify('team-load-project', self.__fileName)
     
     def SolveConflicts(self):
         '''
         Hook executed when team plugin demands solving conflicts in opened project
         '''
         if self.IsInConflict():
-            self.pluginAdapter.Notify('team-solve-conflicts', self.GetConflictingFiles(), self.__fileName)
+            self.interface.notify('team-solve-conflicts', self.GetConflictingFiles(), self.__fileName)
         else:
-            self.pluginAdapter.Notify('team-send-result', _('Project is not in conflict'))
+            self.interface.notify('team-send-result', _('Project is not in conflict'))
     
     
     
@@ -514,7 +522,7 @@ class Plugin(object):
         @param message: Checkin message
         '''
         if message is None:
-            self.pluginAdapter.Notify('team-exception', 'Message is None')
+            self.interface.notify('team-exception', 'Message is None')
         
         else:
             command = [self.executable, 'commit', self.__fileName, '-m', message, '--non-interactive']
@@ -528,19 +536,19 @@ class Plugin(object):
                 p = Popen(command, stdout=PIPE, stderr=PIPE)
                 (out, err) = p.communicate()
             except Exception, e:
-                self.pluginAdapter.Notify('team-exception', str(e))
+                self.interface.notify('team-exception', str(e))
                 return
             if p.returncode == 0:
-                self.pluginAdapter.Notify('team-send-result', out)
+                self.interface.notify('team-send-result', out)
                 
             else:
                 if self.IsTrustServerCertFail(err):
-                    self.pluginAdapter.Notify('team-ask-server-cert', 'team-checkin', err, message)
+                    self.interface.notify('team-ask-server-cert', 'team-checkin', err, message)
                 if self.IsAuthorizationFail(err):
-                    self.pluginAdapter.Notify('team-get-authorization', 'team-checkin', trust, message)
+                    self.interface.notify('team-get-authorization', 'team-checkin', trust, message)
                 else:
                     
-                    self.pluginAdapter.Notify('team-exception', err)
+                    self.interface.notify('team-exception', err)
         
     
     def Revert(self):
@@ -552,10 +560,10 @@ class Plugin(object):
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
         except Exception, e:
-            self.pluginAdapter.Notify('team-exception', str(e))
+            self.interface.notify('team-exception', str(e))
             return
-        self.pluginAdapter.Notify('team-load-project', self.__fileName)
-        self.pluginAdapter.Notify('team-send-result', _('Project reverted'))
+        self.interface.notify('team-load-project', self.__fileName)
+        self.interface.notify('team-send-result', _('Project reverted'))
         
     
     
@@ -583,7 +591,7 @@ class Plugin(object):
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             (out, err) = p.communicate()
         except Exception, e:
-            self.pluginAdapter.Notify('team-exception', str(e))
+            self.interface.notify('team-exception', str(e))
             return
         if p.returncode == 0:
             
@@ -601,15 +609,15 @@ class Plugin(object):
                         d['message'] = sub.text
                 result.append(d)
             
-            self.pluginAdapter.Notify('team-send-log', result)
+            self.interface.notify('team-send-log', result)
             
         else:
             if self.IsTrustServerCertFail(err):
-                self.pluginAdapter.Notify('team-ask-server-cert', 'team-get-log', err)
+                self.interface.notify('team-ask-server-cert', 'team-get-log', err)
             elif self.IsAuthorizationFail(err):
-                self.pluginAdapter.Notify('team-get-authorization', 'team-get-log', trust)
+                self.interface.notify('team-get-authorization', 'team-get-log', trust)
             else:
-                self.pluginAdapter.Notify('team-exception', err)
+                self.interface.notify('team-exception', err)
             
         
     def Checkout(self, username, password, trust, implId, url, directory, revision = None, ):
@@ -654,18 +662,18 @@ class Plugin(object):
                 p = Popen(command, stdout=PIPE, stderr=PIPE)
                 (out, err) = p.communicate()
             except Exception, e:
-                self.pluginAdapter.Notify('team-exception', str(e))
+                self.interface.notify('team-exception', str(e))
                 return
             
             if p.returncode == 0:
-                    self.pluginAdapter.Notify('team-send-result', out)
+                    self.interface.notify('team-send-result', out)
             else:
                 if self.IsTrustServerCertFail(err):
-                    self.pluginAdapter.Notify('team-ask-server-cert', 'team-checkout', err,implId, url, directory, revision)
+                    self.interface.notify('team-ask-server-cert', 'team-checkout', err,implId, url, directory, revision)
                 elif self.IsAuthorizationFail(err):
-                    self.pluginAdapter.Notify('team-get-authorization', 'team-checkout', trust, implId, url, directory, revision)
+                    self.interface.notify('team-get-authorization', 'team-checkout', trust, implId, url, directory, revision)
                 else:
-                    self.pluginAdapter.Notify('team-exception', err)
+                    self.interface.notify('team-exception', err)
     
     
 # select plugin main object
