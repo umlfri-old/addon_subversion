@@ -234,9 +234,7 @@ class Plugin(object):
         except Exception, e:
             pass
 
-        print("ahoj predverzia")
         if self.IsProjectVersioned():
-            print("ahoj verzia")
             # add all callbacks
             self.__AddAllNotifications()
             
